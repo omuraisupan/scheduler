@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 typedef struct {
+    int createTime;
     int arrive;
     int processingTime;
     int startProcessing;
@@ -10,6 +11,20 @@ typedef struct {
     int next;
     int prev;
 } Process;
+
+typedef enum {
+    ARRIVE,
+    START,
+    END
+} SELECT;
+
+void Print_Result(Process process) {
+
+}
+
+void Set_TimeTable(int time, SELECT sel) {
+
+}
 
 int Set_Process(Process *process, int N, char *input_file) {
     int i;
@@ -21,11 +36,12 @@ int Set_Process(Process *process, int N, char *input_file) {
         return -1;
     }
     for (i = 0; fscanf(fp, "%d, %d", &arrive, &processingTime) != EOF && N > i; i++) {
+        process[i].createTime = arrive;
         process[i].arrive = arrive;
         process[i].processingTime = processingTime;
-        process[i].startProcessing = 0;
-        process[i].endProcessing = 0;
-        process[i].turnAroundTime = 0;
+        process[i].startProcessing = -1;
+        process[i].endProcessing = -1;
+        process[i].turnAroundTime = -1;
         process[i].next = -1;
         process[i].prev = -1;
     }
@@ -34,12 +50,12 @@ int Set_Process(Process *process, int N, char *input_file) {
 }
 
 int Insert_Arrive(Process *process, int first, int *last, int insert) {
-    int tmp;
+    //int tmp;
     if (process[*last].arrive > process[insert].arrive) {
-        tmp = process[insert].next;
+        //tmp = process[insert].next;
         process[insert].next = *last;
         process[insert].prev = process[*last].prev;
-        process[*last].next = tmp;
+        //process[*last].next = tmp;
         process[*last].prev = insert;
         if (*last == first) {
             return insert;
@@ -47,8 +63,11 @@ int Insert_Arrive(Process *process, int first, int *last, int insert) {
             Insert_Arrive(process, first, &process[insert].prev, insert);
         }
     } else {
+        //process[insert].next = process[*last].next;
         process[insert].prev = *last;
         process[*last].next = insert;
+        //printf("insert.next = %d\n", process[insert].next);
+        //printf("insert.prev = %d\n", process[insert].prev);
         *last = insert;
         return first;
     }
@@ -151,17 +170,59 @@ double Shortest_Job_Next(Process *process, int N, int first) {
     return ave;
 }
 
-void Round_Robin(Process *process, int N, int timeslice) {
-    int i;
+double Round_Robin(Process *process, int N, int first, int timeslice) {
+    int i = 0, tmp;
+    int now = first, last, breakTime = 0, prev = 0;
     int total = 0;
     double ave;
-    process[0].startProcessing = process[0].arrive;
-    if (timeslice < process[0].processingTime) {
-        process[0].turnAroundTime += timeslice;
+    while (i < N) {
+        if (process[now].createTime > breakTime) {
+            process[now].startProcessing = process[now].createTime;
+        } else if (process[now].startProcessing == -1){
+            process[now].startProcessing = breakTime;
+        }
+        if (process[now].processingTime > timeslice) {
+            
+            tmp = process[now].next;
+            last = process[now].next;
+            process[now].processingTime -= timeslice;
+            breakTime = breakTime + timeslice;
+            process[now].arrive = breakTime;
+            while (process[now].arrive > process[last].arrive) {
+                //printf("last = %d\n", last);
+                process[now].next = process[last].next;
+                //printf("last = %d\n", last);
+                //printf("last.next = %d\n", process[last].next);
+                //printf("last.prev = %d\n", process[last].prev);
+                first = Insert_Arrive(process, first, &last, now);
+                //printf("last = %d\n", last);
+                //printf("last.next = %d\n", process[last].next);
+                //printf("last.prev = %d\n", process[last].prev);
+                last = process[last].next;
+                //exit(0);
+            }
+            //printf("now.next = %d\n", process[now].next);
+            //printf("now.prev = %d\n", process[now].prev);
+            now = tmp;
+            //printf("now = %d\n", now);
+            //printf("now.next = %d\n", process[now].next);
+        } else {
+            process[now].endProcessing = breakTime + process[now].processingTime;
+            process[now].turnAroundTime = process[now].endProcessing - process[now].createTime;
+            total += process[now].turnAroundTime;
+            printf("P%dの到着時間 = %d\n", now, process[now].createTime);
+            printf("P%dの処理開始時間 = %d\n", now, process[now].startProcessing);
+            printf("P%dの処理終了時間 = %d\n", now, process[now].endProcessing);
+            printf("P%dの応答時間 = %d\n", now, process[now].turnAroundTime);
+            //printf("now = %d\n", now);
+            //printf("now.next = %d\n", process[now].next);
+            prev = now;
+            now = process[now].next;
+            i++;
+        }
     }
-    for (i = 0; i < N; i++) {
-
-    }
+    ave = (double)total / (double)N;
+    return ave;
 }
 
 int main() {
@@ -188,7 +249,7 @@ int main() {
     else if(sel == 3) {
         printf("How long is Timeslice? > ");
         scanf("%d", &timeslice);
-        Set_Process(process, N, "input.csv");
+        printf("%f\n", Round_Robin(process, real_N, first, timeslice));
     }
     return 0;
 }
