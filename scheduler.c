@@ -1,255 +1,264 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-typedef struct {
-    int createTime;
-    int arrive;
-    int processingTime;
-    int startProcessing;
-    int endProcessing;
-    int turnAroundTime;
-    int next;
-    int prev;
+typedef struct _process{
+    int number;
+    double createTime;
+    double arrive;
+    double processingTime;
+    double startProcessingTime;
+    double endProcessingTime;
+    double turnAroundTime;
+    struct _process *next;
+    struct _process *prev;
 } Process;
 
-typedef enum {
-    ARRIVE,
-    START,
-    END
-} SELECT;
-
-void Print_Result(Process process) {
-
+void Print_Queue(Process *head) {
+    Process *i;
+    for (i = head; i != NULL; i = i->next) {
+        printf("P%d (%p) next:(%p) prev:P(%p)\n", i->number, i, i->next, i->prev);
+    }
 }
 
-void Set_TimeTable(int time, SELECT sel) {
-
-}
-
-int Set_Process(Process *process, int N, char *input_file) {
-    int i;
-    int arrive, processingTime;
+int Set_FIFOqueue(Process **head, Process **tail, int N, char *input_file) {
+    int i = 0;
+    double arrive, processingTime;
+    Process *new_process, *now;
     FILE *fp;
     fp = fopen(input_file, "r");
     if (fp == NULL) {
         printf("READ_FILE_EREOR\n");
-        return -1;
+        exit(1);
     }
-    for (i = 0; fscanf(fp, "%d, %d", &arrive, &processingTime) != EOF && N > i; i++) {
-        process[i].createTime = arrive;
-        process[i].arrive = arrive;
-        process[i].processingTime = processingTime;
-        process[i].startProcessing = -1;
-        process[i].endProcessing = -1;
-        process[i].turnAroundTime = -1;
-        process[i].next = -1;
-        process[i].prev = -1;
+    for (i = 0; fscanf(fp, "%lf, %lf", &arrive, &processingTime) == 2 && N > i; i++) {
+        new_process = (Process *)malloc(sizeof(Process));
+        if (new_process == NULL) {
+            printf("MEMORY ALLOCATION ERROR\n");
+            exit(1);
+        }
+        new_process->number = i + 1;
+        new_process->createTime = arrive;
+        new_process->arrive = arrive;
+        new_process->processingTime = processingTime;
+        new_process->startProcessingTime = -1.0;
+        new_process->endProcessingTime = -1.0;
+        new_process->turnAroundTime = -1.0;
+        if (i == 0) {
+            new_process->next = NULL;
+            new_process->prev = NULL;
+            *head = new_process;
+            *tail = new_process;
+        } else {
+            now = *head;
+            while (now != NULL && now->arrive <= new_process->arrive) {
+                now = now->next;
+            }
+            if (now == NULL) {
+                (*tail)->next = new_process;
+                new_process->prev = *tail;
+                *tail = new_process;
+            }
+            else if (now->arrive > new_process->arrive) {
+                new_process->next = now;
+                new_process->prev = now->prev;
+                if (now->prev == NULL) {
+                    *head = new_process;
+                } else {
+                    (now->prev)->next = new_process;
+                }
+                now->prev = new_process;
+            }
+        }
     }
     fclose(fp);
     return i;
 }
 
-int Insert_Arrive(Process *process, int first, int *last, int insert) {
-    //int tmp;
-    if (process[*last].arrive > process[insert].arrive) {
-        //tmp = process[insert].next;
-        process[insert].next = *last;
-        process[insert].prev = process[*last].prev;
-        //process[*last].next = tmp;
-        process[*last].prev = insert;
-        if (*last == first) {
-            return insert;
+void dequeue(Process **head, int *totalTurnAroundTime, double *elapsedTime) {
+}
+
+void Search_Min_Processing(Process **head, double elapsedTime) {
+    Process *i, *min;
+    min = *head;
+    for (i = *head; i != NULL; i = i->next) {
+        if (i->arrive <= elapsedTime && i->processingTime < min->processingTime) {
+            min = i;
+        }
+    }
+    if (min != *head) {
+        min->prev->next = min->next;
+        if (min->next != NULL) {
+            min->next->prev = min->prev;
+        }
+        (*head)->prev = min;
+        min->prev = NULL;
+        min->next = *head;
+        *head = min;
+    }
+}
+
+void Search_Arrivequeue(Process **head, Process **tail, double elapsedTime) {
+    Process *i;
+    for (i = *head; i != NULL; i = i->next) {
+        if (i->arrive > elapsedTime) {
+            if (i != *head) {
+                *tail = i->prev;
+                return;
+            } else break;
+        }
+        *tail = i;
+    }
+}
+
+double First_Come_First_Serve(Process **head, int N) {
+    int i = 1;
+    double totalTurnAroundTime, aveTrunAroundTime, elapsedTime;
+    elapsedTime = (*head)->arrive;
+
+    while (1) {
+        printf("\n%d番目に早い処理終了はP%d\n", i, (*head)->number);
+        if ((*head)->arrive > elapsedTime) {
+            (*head)->startProcessingTime = (*head)->arrive;
         } else {
-            Insert_Arrive(process, first, &process[insert].prev, insert);
+            (*head)->startProcessingTime = elapsedTime;
         }
-    } else {
-        //process[insert].next = process[*last].next;
-        process[insert].prev = *last;
-        process[*last].next = insert;
-        //printf("insert.next = %d\n", process[insert].next);
-        //printf("insert.prev = %d\n", process[insert].prev);
-        *last = insert;
-        return first;
-    }
-}
+        (*head)->endProcessingTime = (*head)->startProcessingTime + (*head)->processingTime;
+        (*head)->turnAroundTime = (*head)->endProcessingTime - (*head)->arrive;
+        totalTurnAroundTime += (*head)->turnAroundTime;
+        elapsedTime = (*head)->endProcessingTime;
 
-int Insert_Processing(Process *process, int first, int *last, int insert) {
-    int tmp;
-    if (process[*last].processingTime > process[insert].processingTime) {
-        tmp = process[insert].next;
-        process[insert].next = *last;
-        process[insert].prev = process[*last].prev;
-        process[*last].next = tmp;
-        process[*last].prev = insert;
-        if (*last == first) {
-            return insert;
+        printf("\n%d番目に処理終了はP%d\n", i, (*head)->number);
+        printf("P%dの到着時間 = %f\n", (*head)->number, (*head)->arrive);
+        printf("P%dの処理開始時間 = %f\n", (*head)->number, (*head)->startProcessingTime);
+        printf("P%dの処理終了時間 = %f\n", (*head)->number, (*head)->endProcessingTime);
+        printf("P%dの応答時間 = %f\n", (*head)->number, (*head)->turnAroundTime);
+
+        if ((*head)->next != NULL) {
+            *head = (*head)->next;
+            free((*head)->prev);
+            (*head)->prev = NULL;
         } else {
-            Insert_Processing(process, first, &process[insert].prev, insert);
+            break;
         }
-    } else {
-        process[insert].prev = *last;
-        process[*last].next = insert;
-        *last = insert;
-        return first;
+        i++;
     }
+    aveTrunAroundTime = totalTurnAroundTime / (double)N;
+    return aveTrunAroundTime;
 }
 
-void Sorting_Order_Processing(Process *process, int done) {
-    int first = process[done].next;
-    int last = first;
-    int insert = process[last].next;
-    while (process[done].endProcessing >= process[insert].arrive && last != -1 && insert != -1) {
-        first = Insert_Processing(process, first, &last, insert);
-        process[done].next = first;
-        last = insert;
-        insert = process[last].next;
-    }
-}
 
-int Set_Order(Process *process, int N) {
-    int i, j;
-    int last = 0, next = 1, first = 0;
-    process[0].next = 1;
-    process[0].prev = -1;
-    for (i = 1; i < N; i++) {
-        first = Insert_Arrive(process, first, &last, i);
-    }
-    return first;
-}
-
-double First_Come_First_Serve(Process *process, int N, int first) {
-    int i;
-    int now = first, prev = 0;
-    int total = 0;
-    double ave;
-    for (i = 0; i < N; i++) {
-        printf("%d番目に早い到着はP%d\n", i, now);
-        if (process[now].arrive > process[prev].endProcessing) {
-            process[now].startProcessing = process[now].arrive;
+double Shortest_Job_Next(Process **head, int N) {
+    int i = 1;
+    double totalTurnAroundTime, aveTurnAroundTime, elapsedTime;
+    elapsedTime = (*head)->arrive;
+    while (1) {
+        Search_Min_Processing(head, elapsedTime);
+        if ((*head)->arrive > elapsedTime) {
+            (*head)->startProcessingTime = (*head)->arrive;
         } else {
-            process[now].startProcessing = process[prev].endProcessing;
+            (*head)->startProcessingTime = elapsedTime;
         }
-        process[now].endProcessing = process[now].startProcessing + process[now].processingTime;
-        process[now].turnAroundTime = process[now].endProcessing - process[now].arrive;
-        total += process[now].turnAroundTime;
-        printf("P%dの到着時間 = %d\n", now, process[now].arrive);
-        printf("P%dの処理開始時間 = %d\n", now, process[now].startProcessing);
-        printf("P%dの処理終了時間 = %d\n", now, process[now].endProcessing);
-        printf("P%dの応答時間 = %d\n", now, process[now].turnAroundTime);
-        prev = now;
-        now = process[now].next;
-    }
-    ave = (double)total / (double)N;
-    return ave;
-}
+        (*head)->endProcessingTime = (*head)->startProcessingTime + (*head)->processingTime;
+        (*head)->turnAroundTime = (*head)->endProcessingTime - (*head)->arrive;
+        totalTurnAroundTime += (*head)->turnAroundTime;
+        elapsedTime = (*head)->endProcessingTime;
 
-double Shortest_Job_Next(Process *process, int N, int first) {
-    int i;
-    int now = first, prev = 0;
-    int sortedPoint;
-    int total = 0;
-    double ave;
-    for (i = 0; i < N; i++) {
-        if (process[now].arrive > process[prev].endProcessing) {
-            process[now].startProcessing = process[now].arrive;
+        printf("\n%d番目に処理終了はP%d\n", i, (*head)->number);
+        printf("P%dの到着時間 = %f\n", (*head)->number, (*head)->arrive);
+        printf("P%dの処理開始時間 = %f\n", (*head)->number, (*head)->startProcessingTime);
+        printf("P%dの処理終了時間 = %f\n", (*head)->number, (*head)->endProcessingTime);
+        printf("P%dの応答時間 = %f\n", (*head)->number, (*head)->turnAroundTime);
+
+        if ((*head)->next != NULL) {
+            *head = (*head)->next;
+            free((*head)->prev);
+            (*head)->prev = NULL;
         } else {
-            process[now].startProcessing = process[prev].endProcessing;
+            break;
         }
-        process[now].endProcessing = process[now].startProcessing + process[now].processingTime;
-        process[now].turnAroundTime = process[now].endProcessing - process[now].arrive;
-        total += process[now].turnAroundTime;
-        printf("P%dの到着時間 = %d\n", now, process[now].arrive);
-        printf("P%dの処理開始時間 = %d\n", now, process[now].startProcessing);
-        printf("P%dの処理終了時間 = %d\n", now, process[now].endProcessing);
-        printf("P%dの応答時間 = %d\n", now, process[now].turnAroundTime);
-        if (process[now].next != -1) Sorting_Order_Processing(process, now);
-        prev = now;
-        now = process[now].next;
+        i++;
     }
-    ave = (double)total / (double)N;
-    return ave;
+    aveTurnAroundTime = totalTurnAroundTime / (double)N;
+    return aveTurnAroundTime;
 }
 
-double Round_Robin(Process *process, int N, int first, int timeslice) {
-    int i = 0, tmp;
-    int now = first, last, breakTime = 0, prev = 0;
-    int total = 0;
-    double ave;
-    while (i < N) {
-        if (process[now].createTime > breakTime) {
-            process[now].startProcessing = process[now].createTime;
-        } else if (process[now].startProcessing == -1){
-            process[now].startProcessing = breakTime;
-        }
-        if (process[now].processingTime > timeslice) {
-            
-            tmp = process[now].next;
-            last = process[now].next;
-            process[now].processingTime -= timeslice;
-            breakTime = breakTime + timeslice;
-            process[now].arrive = breakTime;
-            while (process[now].arrive > process[last].arrive) {
-                //printf("last = %d\n", last);
-                process[now].next = process[last].next;
-                //printf("last = %d\n", last);
-                //printf("last.next = %d\n", process[last].next);
-                //printf("last.prev = %d\n", process[last].prev);
-                first = Insert_Arrive(process, first, &last, now);
-                //printf("last = %d\n", last);
-                //printf("last.next = %d\n", process[last].next);
-                //printf("last.prev = %d\n", process[last].prev);
-                last = process[last].next;
-                //exit(0);
+double Round_Robin(Process **head, Process **tail, double timeSlice, int N) {
+    int i = 1;
+    double totalTurnAroundTime, aveTurnAroundTime, elapsedTime = (*head)->arrive;
+    Process *tmp;
+    while (1) {
+        if ((*head)->startProcessingTime < 0) {
+            if ((*head)->arrive > elapsedTime) {
+                (*head)->startProcessingTime = (*head)->arrive;
+            } else {
+                (*head)->startProcessingTime = elapsedTime;
             }
-            //printf("now.next = %d\n", process[now].next);
-            //printf("now.prev = %d\n", process[now].prev);
-            now = tmp;
-            //printf("now = %d\n", now);
-            //printf("now.next = %d\n", process[now].next);
+        }
+        if ((*head)->processingTime > timeSlice) {
+            (*head)->processingTime -= timeSlice;
+            (*head)->arrive = elapsedTime;
+            Search_Arrivequeue(head, tail, elapsedTime + timeSlice);
+            if (*head != *tail) {
+                if ((*tail)->next != NULL) {
+                    (*tail)->next->prev = *head;
+                }
+                tmp = (*head)->next;
+                (*head)->next->prev = NULL;
+                (*head)->next = (*tail)->next;
+                (*head)->prev = *tail;
+                (*tail)->next = *head;
+                *head = tmp;
+            }
+            elapsedTime += timeSlice;
         } else {
-            process[now].endProcessing = breakTime + process[now].processingTime;
-            process[now].turnAroundTime = process[now].endProcessing - process[now].createTime;
-            total += process[now].turnAroundTime;
-            printf("P%dの到着時間 = %d\n", now, process[now].createTime);
-            printf("P%dの処理開始時間 = %d\n", now, process[now].startProcessing);
-            printf("P%dの処理終了時間 = %d\n", now, process[now].endProcessing);
-            printf("P%dの応答時間 = %d\n", now, process[now].turnAroundTime);
-            //printf("now = %d\n", now);
-            //printf("now.next = %d\n", process[now].next);
-            prev = now;
-            now = process[now].next;
+            if ((*head)->arrive > elapsedTime) {
+                (*head)->endProcessingTime = (*head)->arrive + (*head)->processingTime;
+            } else {
+                (*head)->endProcessingTime = elapsedTime + (*head)->processingTime;
+            }
+            (*head)->turnAroundTime = (*head)->endProcessingTime - (*head)->createTime;
+            totalTurnAroundTime += (*head)->turnAroundTime;
+            elapsedTime = (*head)->endProcessingTime;
+
+            printf("\n%d番目に処理終了はP%d\n", i, (*head)->number);
+            printf("P%dの到着時間 = %f\n", (*head)->number, (*head)->createTime);
+            printf("P%dの処理開始c時間 = %f\n", (*head)->number, (*head)->startProcessingTime);
+            printf("P%dの処理終了時間 = %f\n", (*head)->number, (*head)->endProcessingTime);
+            printf("P%dの応答時間 = %f\n", (*head)->number, (*head)->turnAroundTime);
+
+            if ((*head)->next != NULL) {
+            *head = (*head)->next;
+            free((*head)->prev);
+            (*head)->prev = NULL;
+            } else {
+                break;
+            }
             i++;
         }
     }
-    ave = (double)total / (double)N;
-    return ave;
+    aveTurnAroundTime = totalTurnAroundTime / (double)N;
+    return aveTurnAroundTime;
 }
 
 int main() {
-    int N, sel, timeslice, first;
-    int real_N;
+    int N, sel, real_N;
+    double timeslice;
+    Process *head, *tail;
     printf("How many processes ? > ");
     scanf("%d", &N);
-    Process *process = (Process *)malloc(sizeof(Process) * N);
-    if (process == NULL) {
-        printf("MEMORY ALLOCATION ERROR\n");
-        return -1;
-    }
-    real_N = Set_Process(process, N, "input.csv");
-    first = Set_Order(process, real_N);
-
+    real_N = Set_FIFOqueue(&head, &tail, N, "input.csv");
     printf("How do you want to calculate?\n1:First Come First Serve\n2:Shortest Job Next\n3:Round Robin\n> ");
     scanf("%d", &sel);
     if (sel == 1) {
-        printf("%f\n", First_Come_First_Serve(process, real_N, first));
+        printf("\n\n*********\n平均応答時間は%f\n", First_Come_First_Serve(&head, real_N));
     }
     else if (sel == 2) {
-        printf("%f\n", Shortest_Job_Next(process, real_N, first));
+        printf("\n\n*********\n平均応答時間は%f\n", Shortest_Job_Next(&head, real_N));
     }
     else if(sel == 3) {
         printf("How long is Timeslice? > ");
-        scanf("%d", &timeslice);
-        printf("%f\n", Round_Robin(process, real_N, first, timeslice));
+        scanf("%lf", &timeslice);
+        printf("\n\n*********\n平均応答時間は%f\n", Round_Robin(&head, &tail, timeslice, real_N));
     }
     return 0;
 }
