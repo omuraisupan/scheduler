@@ -1,17 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
-typedef struct _process{
-    int number;
-    double createTime;
-    double arrive;
-    double processingTime;
-    double startProcessingTime;
-    double endProcessingTime;
-    double turnAroundTime;
-    struct _process *next;
-    struct _process *prev;
-} Process;
+#include "scheduler.h"
 
 void Print_Queue(Process *head) {
     Process *i;
@@ -74,7 +63,39 @@ int Set_FIFOqueue(Process **head, Process **tail, int N, char *input_file) {
     return i;
 }
 
-void dequeue(Process **head, int *totalTurnAroundTime, double *elapsedTime) {
+int dequeue(Process **head, double *totalTurnAroundTime, double *elapsedTime, int *i) {
+    if ((*head)->startProcessingTime < 0) {
+        if ((*head)->arrive > *elapsedTime) {
+            (*head)->startProcessingTime = (*head)->arrive;
+        } else {
+            (*head)->startProcessingTime = *elapsedTime;
+        }
+    }
+
+    if ((*head)->arrive > *elapsedTime) {
+        (*head)->endProcessingTime = (*head)->arrive + (*head)->processingTime;
+    } else {
+        (*head)->endProcessingTime = *elapsedTime + (*head)->processingTime;
+    }
+    (*head)->turnAroundTime = (*head)->endProcessingTime - (*head)->createTime;
+    *totalTurnAroundTime += (*head)->turnAroundTime;
+    *elapsedTime = (*head)->endProcessingTime;
+
+    printf("\n%d番目に処理終了はP%d\n", *i, (*head)->number);
+    printf("P%dの到着時間 = %f\n", (*head)->number, (*head)->createTime);
+    printf("P%dの処理開始時間 = %f\n", (*head)->number, (*head)->startProcessingTime);
+    printf("P%dの処理終了時間 = %f\n", (*head)->number, (*head)->endProcessingTime);
+    printf("P%dの応答時間 = %f\n", (*head)->number, (*head)->turnAroundTime);
+
+    if ((*head)->next != NULL) {
+        *head = (*head)->next;
+        free((*head)->prev);
+        (*head)->prev = NULL;
+        *i++;
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 void Search_Min_Processing(Process **head, double elapsedTime) {
@@ -149,11 +170,11 @@ double First_Come_First_Serve(Process **head, int N) {
 
 double Shortest_Job_Next(Process **head, int N) {
     int i = 1;
-    double totalTurnAroundTime, aveTurnAroundTime, elapsedTime;
+    double totalTurnAroundTime, aveTurnAroundTime, elapsedTime = 0.0;
     elapsedTime = (*head)->arrive;
     while (1) {
         Search_Min_Processing(head, elapsedTime);
-        if ((*head)->arrive > elapsedTime) {
+        /*if ((*head)->arrive > elapsedTime) {
             (*head)->startProcessingTime = (*head)->arrive;
         } else {
             (*head)->startProcessingTime = elapsedTime;
@@ -167,16 +188,8 @@ double Shortest_Job_Next(Process **head, int N) {
         printf("P%dの到着時間 = %f\n", (*head)->number, (*head)->arrive);
         printf("P%dの処理開始時間 = %f\n", (*head)->number, (*head)->startProcessingTime);
         printf("P%dの処理終了時間 = %f\n", (*head)->number, (*head)->endProcessingTime);
-        printf("P%dの応答時間 = %f\n", (*head)->number, (*head)->turnAroundTime);
-
-        if ((*head)->next != NULL) {
-            *head = (*head)->next;
-            free((*head)->prev);
-            (*head)->prev = NULL;
-        } else {
-            break;
-        }
-        i++;
+        printf("P%dの応答時間 = %f\n", (*head)->number, (*head)->turnAroundTime);*/
+        if (dequeue(head, &totalTurnAroundTime, &elapsedTime, &i) == 0) break;
     }
     aveTurnAroundTime = totalTurnAroundTime / (double)N;
     return aveTurnAroundTime;
@@ -222,7 +235,7 @@ double Round_Robin(Process **head, Process **tail, double timeSlice, int N) {
 
             printf("\n%d番目に処理終了はP%d\n", i, (*head)->number);
             printf("P%dの到着時間 = %f\n", (*head)->number, (*head)->createTime);
-            printf("P%dの処理開始c時間 = %f\n", (*head)->number, (*head)->startProcessingTime);
+            printf("P%dの処理開始時間 = %f\n", (*head)->number, (*head)->startProcessingTime);
             printf("P%dの処理終了時間 = %f\n", (*head)->number, (*head)->endProcessingTime);
             printf("P%dの応答時間 = %f\n", (*head)->number, (*head)->turnAroundTime);
 
@@ -238,27 +251,4 @@ double Round_Robin(Process **head, Process **tail, double timeSlice, int N) {
     }
     aveTurnAroundTime = totalTurnAroundTime / (double)N;
     return aveTurnAroundTime;
-}
-
-int main() {
-    int N, sel, real_N;
-    double timeslice;
-    Process *head, *tail;
-    printf("How many processes ? > ");
-    scanf("%d", &N);
-    real_N = Set_FIFOqueue(&head, &tail, N, "input.csv");
-    printf("How do you want to calculate?\n1:First Come First Serve\n2:Shortest Job Next\n3:Round Robin\n> ");
-    scanf("%d", &sel);
-    if (sel == 1) {
-        printf("\n\n*********\n平均応答時間は%f\n", First_Come_First_Serve(&head, real_N));
-    }
-    else if (sel == 2) {
-        printf("\n\n*********\n平均応答時間は%f\n", Shortest_Job_Next(&head, real_N));
-    }
-    else if(sel == 3) {
-        printf("How long is Timeslice? > ");
-        scanf("%lf", &timeslice);
-        printf("\n\n*********\n平均応答時間は%f\n", Round_Robin(&head, &tail, timeslice, real_N));
-    }
-    return 0;
 }
