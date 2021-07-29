@@ -2,11 +2,16 @@
 #include <stdlib.h>
 #include "scheduler.h"
 
-void Print_Queue(Process *head) {
-    Process *i;
-    for (i = head; i != NULL; i = i->next) {
-        printf("P%d (%p) next:(%p) prev:P(%p)\n", i->number, i, i->next, i->prev);
+void Write_Result(Process *process, char *result_file) {
+    FILE *fp;
+    fp = fopen(result_file, "a");
+    if (fp == NULL) {
+        printf("READ_FILE_ERROR\n");
+        exit(1);
     }
+    fprintf(fp, "P%d, %f, %f, %f, %f\n", process->number, process->createTime, 
+            process->startProcessingTime, process->endProcessingTime, process->turnAroundTime);
+    fclose(fp);
 }
 
 int Set_FIFOqueue(Process **head, Process **tail, int N, char *input_file) {
@@ -16,7 +21,7 @@ int Set_FIFOqueue(Process **head, Process **tail, int N, char *input_file) {
     FILE *fp;
     fp = fopen(input_file, "r");
     if (fp == NULL) {
-        printf("READ_FILE_EREOR\n");
+        printf("READ_FILE_ERROR\n");
         exit(1);
     }
     for (i = 0; fscanf(fp, "%lf, %lf", &arrive, &processingTime) == 2 && N > i; i++) {
@@ -73,7 +78,7 @@ void Move_Nextqueue(Process **head, double *elapsedTime) {
     }
 }
 
-int Dequeue(Process **head, double *totalTurnAroundTime, double *elapsedTime, int *i) {
+int Dequeue(Process **head, double *totalTurnAroundTime, double *elapsedTime, int *i, char *result_file) {
     if ((*head)->arrive > *elapsedTime) {
         (*head)->endProcessingTime = (*head)->arrive + (*head)->processingTime;
     } else {
@@ -83,11 +88,7 @@ int Dequeue(Process **head, double *totalTurnAroundTime, double *elapsedTime, in
     *totalTurnAroundTime += (*head)->turnAroundTime;
     *elapsedTime = (*head)->endProcessingTime;
 
-    printf("\n%d番目に処理終了はP%d\n", *i, (*head)->number);
-    printf("P%dの到着時間 = %f\n", (*head)->number, (*head)->createTime);
-    printf("P%dの処理開始時間 = %f\n", (*head)->number, (*head)->startProcessingTime);
-    printf("P%dの処理終了時間 = %f\n", (*head)->number, (*head)->endProcessingTime);
-    printf("P%dの応答時間 = %f\n", (*head)->number, (*head)->turnAroundTime);
+    Write_Result(*head, result_file);
 
     if ((*head)->next != NULL) {
         *head = (*head)->next;
@@ -133,34 +134,34 @@ void Search_Arrivequeue(Process **head, Process **tail, double elapsedTime) {
     }
 }
 
-double First_Come_First_Serve(Process **head, int N) {
+double First_Come_First_Serve(Process **head, int N, char *result_file) {
     int i = 1;
     double totalTurnAroundTime = 0.0, aveTrunAroundTime, elapsedTime = 0.0;
     elapsedTime = (*head)->arrive;
 
     while (1) {
         Move_Nextqueue(head, &elapsedTime);
-        if (Dequeue(head, &totalTurnAroundTime, &elapsedTime, &i) == 0) break;
+        if (Dequeue(head, &totalTurnAroundTime, &elapsedTime, &i, result_file) == 0) break;
     }
     aveTrunAroundTime = totalTurnAroundTime / (double)N;
     return aveTrunAroundTime;
 }
 
 
-double Shortest_Job_Next(Process **head, int N) {
+double Shortest_Job_Next(Process **head, int N, char *result_file) {
     int i = 1;
     double totalTurnAroundTime = 0.0, aveTurnAroundTime, elapsedTime = 0.0;
     elapsedTime = (*head)->arrive;
     while (1) {
         Search_Min_Processing(head, elapsedTime);
         Move_Nextqueue(head, &elapsedTime);
-        if (Dequeue(head, &totalTurnAroundTime, &elapsedTime, &i) == 0) break;
+        if (Dequeue(head, &totalTurnAroundTime, &elapsedTime, &i, result_file) == 0) break;
     }
     aveTurnAroundTime = totalTurnAroundTime / (double)N;
     return aveTurnAroundTime;
 }
 
-double Round_Robin(Process **head, Process **tail, double timeSlice, int N) {
+double Round_Robin(Process **head, Process **tail, double timeSlice, int N, char *result_file) {
     int i = 1;
     double totalTurnAroundTime = 0.0, aveTurnAroundTime, elapsedTime = (*head)->arrive;
     Process *tmp;
@@ -183,7 +184,7 @@ double Round_Robin(Process **head, Process **tail, double timeSlice, int N) {
             }
             elapsedTime += timeSlice;
         } else {
-            if (Dequeue(head, &totalTurnAroundTime, &elapsedTime, &i) == 0) break;
+            if (Dequeue(head, &totalTurnAroundTime, &elapsedTime, &i, result_file) == 0) break;
         }
     }
     aveTurnAroundTime = totalTurnAroundTime / (double)N;
