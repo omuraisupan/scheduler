@@ -1,5 +1,5 @@
 *.csv
 *.out
 *.o
-bin
-obj
+bin/*
+obj/*
